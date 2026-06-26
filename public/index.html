@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Java Code Review AI</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+    textarea { width: 100%; height: 160px; font-family: monospace; font-size: 13px; padding: 8px; }
+    button { margin-top: 8px; padding: 8px 20px; cursor: pointer; }
+    #output { margin-top: 20px; white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
+    .user { color: #888; margin: 12px 0 4px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h2>Java Code Review 助手</h2>
+  <textarea id="input" placeholder="貼上 Java code 或直接提問..."></textarea>
+  <button onclick="send()">送出</button>
+  <div id="output"></div>
+
+<script>
+  const history = [];
+
+  async function send() {
+    const input = document.getElementById("input");
+    const output = document.getElementById("output");
+    const message = input.value.trim();
+    if (!message) return;
+
+    output.innerHTML += `<div class="user">你：</div>${message}\n\n<div class="user">AI：</div>`;
+    input.value = "";
+
+    history.push({ role: "user", content: message });
+    let reply = "";
+
+    const response = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const lines = decoder.decode(value).split("\n\n");
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const chunk = line.replace("data: ", "");
+          reply += chunk;
+          output.innerHTML = output.innerHTML.replace(/(<div class="user">AI：<\/div>)[^]*$/, `$1${reply}`);
+        }
+      }
+    }
+
+    history.push({ role: "assistant", content: reply });
+    output.innerHTML += "\n\n";
+  }
+
+  document.getElementById("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.metaKey) send();
+  });
+</script>
+</body>
+</html>
